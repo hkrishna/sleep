@@ -269,56 +269,7 @@
                         <p class="text-slate-400 text-sm mt-2">Tonight</p>
                     </div>
 
-                    <!-- Tonight's detailed forecast -->
-                    <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 mb-6">
-                        <div class="grid grid-cols-2 gap-4 mb-6">
-                            <div class="text-center">
-                                <p class="text-slate-400 text-sm mb-1">Max Wind</p>
-                                <p class="text-3xl font-light ${today.maxWind >= 20 ? 'text-orange-400' : 'text-emerald-400'}">
-                                    ${today.maxWind}<span class="text-lg ml-1">mph</span>
-                                </p>
-                            </div>
-                            <div class="text-center">
-                                <p class="text-slate-400 text-sm mb-1">Avg Wind</p>
-                                <p class="text-3xl font-light text-slate-300">
-                                    ${today.avgWind}<span class="text-lg ml-1">mph</span>
-                                </p>
-                            </div>
-                        </div>
-
-                        <div class="border-t border-slate-700 pt-4">
-                            <p class="text-slate-400 text-sm mb-3">Hourly (9PM-7AM)</p>
-                            <div class="space-y-2">
-                                ${today.nightPeriods.map(period => {
-                                    const time = new Date(period.dt * 1000).toLocaleTimeString('en-US', {
-                                        hour: 'numeric',
-                                        hour12: true,
-                                        timeZone: 'America/New_York'
-                                    });
-                                    const windSpeed = Math.round(period.wind.speed);
-                                    const windGust = period.wind.gust ? Math.round(period.wind.gust) : windSpeed;
-                                    const maxWindSpeed = Math.max(windSpeed, windGust);
-                                    
-                                    return `
-                                        <div class="flex items-center justify-between text-sm">
-                                            <span class="text-slate-400 w-16">${time}</span>
-                                            <div class="flex items-center gap-2 flex-1 ml-4">
-                                                <div class="flex-1 bg-slate-700 rounded-full h-1.5 overflow-hidden">
-                                                    <div class="h-full ${maxWindSpeed >= 20 ? 'bg-orange-400' : 'bg-emerald-400'}" 
-                                                         style="width: ${Math.min((maxWindSpeed / 30) * 100, 100)}%"></div>
-                                                </div>
-                                                <span class="text-slate-300 w-12 text-right font-medium ${maxWindSpeed >= 20 ? 'text-orange-400' : ''}">
-                                                    ${maxWindSpeed}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- All days forecast -->
+                    <!-- 5-day forecast -->
                     <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 mb-6">
                         <p class="text-slate-400 text-sm mb-4">5-Day Forecast</p>
                         <div class="space-y-3">
