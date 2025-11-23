@@ -60,6 +60,52 @@
             return new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
         }
 
+        function getWeatherEmoji(weatherData) {
+            if (!weatherData || !weatherData.weather || weatherData.weather.length === 0) {
+                return '🌤️'; // Default
+            }
+            
+            const main = weatherData.weather[0].main.toLowerCase();
+            const description = weatherData.weather[0].description.toLowerCase();
+            const windSpeed = weatherData.wind ? Math.round(weatherData.wind.speed) : 0;
+            
+            // Check for wind first (if very windy, show wind emoji)
+            if (windSpeed >= 20) {
+                return '💨';
+            }
+            
+            // Map weather conditions to emojis
+            if (main === 'clear') {
+                return '☀️';
+            } else if (main === 'clouds') {
+                if (description.includes('few') || description.includes('scattered')) {
+                    return '⛅';
+                } else {
+                    return '☁️';
+                }
+            } else if (main === 'rain') {
+                if (description.includes('drizzle')) {
+                    return '🌦️';
+                } else if (description.includes('thunderstorm')) {
+                    return '⛈️';
+                } else {
+                    return '🌧️';
+                }
+            } else if (main === 'drizzle') {
+                return '🌦️';
+            } else if (main === 'thunderstorm') {
+                return '⛈️';
+            } else if (main === 'snow') {
+                return '❄️';
+            } else if (main === 'mist' || main === 'fog' || main === 'haze') {
+                return '🌫️';
+            } else if (windSpeed >= 15) {
+                return '💨';
+            } else {
+                return '🌤️';
+            }
+        }
+
         function getCurrentWind(forecastList) {
             if (!forecastList || forecastList.length === 0) return null;
             
@@ -86,7 +132,9 @@
                 speed: windSpeed,
                 gust: windGust,
                 maxWind: maxWind,
-                shouldSleepInStudy: maxWind >= 20
+                shouldSleepInStudy: maxWind >= 20,
+                weatherEmoji: getWeatherEmoji(closest),
+                weatherData: closest
             };
         }
 
@@ -127,9 +175,14 @@
             
             const maxWind = Math.max(...windSpeeds);
             
+            // Get weather from the first nighttime period
+            const firstNightPeriod = nightPeriods[0];
+            const weatherEmoji = getWeatherEmoji(firstNightPeriod);
+            
             return {
                 maxWind: maxWind,
-                shouldSleepInStudy: maxWind >= 20
+                shouldSleepInStudy: maxWind >= 20,
+                weatherEmoji: weatherEmoji
             };
         }
 
@@ -189,6 +242,18 @@
         function generateDemoData() {
             const now = new Date();
             const data = [];
+            const weatherTypes = [
+                { main: 'Clear', description: 'clear sky' },
+                { main: 'Clouds', description: 'few clouds' },
+                { main: 'Clouds', description: 'scattered clouds' },
+                { main: 'Clouds', description: 'broken clouds' },
+                { main: 'Clouds', description: 'overcast clouds' },
+                { main: 'Rain', description: 'light rain' },
+                { main: 'Rain', description: 'moderate rain' },
+                { main: 'Rain', description: 'heavy rain' },
+                { main: 'Drizzle', description: 'light drizzle' },
+                { main: 'Thunderstorm', description: 'thunderstorm' }
+            ];
             
             for (let i = 0; i < 120; i++) { // 5 days of 3-hour intervals
                 const time = new Date(now.getTime() + (i * 3 * 60 * 60 * 1000));
@@ -199,12 +264,19 @@
                     baseWind += Math.random() * 12;
                 }
                 
+                // Random weather type
+                const weatherType = weatherTypes[Math.floor(Math.random() * weatherTypes.length)];
+                
                 data.push({
                     dt: time.getTime() / 1000,
                     wind: {
                         speed: Math.round(baseWind),
                         gust: Math.round(baseWind + Math.random() * 5)
-                    }
+                    },
+                    weather: [{
+                        main: weatherType.main,
+                        description: weatherType.description
+                    }]
                 });
             }
             
@@ -322,8 +394,8 @@
                 return;
             }
             
-            const currentEmoji = currentWind.shouldSleepInStudy ? '🫨' : '😴';
-            const tonightEmoji = tonightForecast && tonightForecast.shouldSleepInStudy ? '🫨' : '😴';
+            const currentSleepEmoji = currentWind.shouldSleepInStudy ? '🫨' : '😴';
+            const tonightSleepEmoji = tonightForecast && tonightForecast.shouldSleepInStudy ? '🫨' : '😴';
             
             const cached = localStorage.getItem('weatherCache');
             const cacheAge = cached ? Date.now() - JSON.parse(cached).timestamp : 0;
@@ -333,28 +405,31 @@
             let textHTML = '';
             
             if (isBefore9PM && tonightForecast) {
-                // Show both current and tonight emojis
+                // Show both current and tonight - weather emoji big, sleep emoji small
                 emojiHTML = `
                     <div class="space-y-8">
                         <div>
-                            <div onclick="toggleDetails()" class="emoji-main select-none">
-                                ${currentEmoji}
+                            <div onclick="toggleDetails()" class="select-none">
+                                <div class="emoji-main">${currentWind.weatherEmoji}</div>
+                                <div class="emoji-small mt-2">${currentSleepEmoji}</div>
                             </div>
                             <p class="text-slate-400 text-sm mt-4">Now: ${currentWind.maxWind} mph</p>
                         </div>
                         <div>
-                            <div onclick="toggleDetails()" class="emoji-main select-none">
-                                ${tonightEmoji}
+                            <div onclick="toggleDetails()" class="select-none">
+                                <div class="emoji-main">${tonightForecast.weatherEmoji || currentWind.weatherEmoji}</div>
+                                <div class="emoji-small mt-2">${tonightSleepEmoji}</div>
                             </div>
                             <p class="text-slate-400 text-sm mt-4">Tonight: ${tonightForecast.maxWind} mph max</p>
                         </div>
                     </div>
                 `;
             } else {
-                // Show just one emoji (current/nighttime)
+                // Show just one - weather emoji big, sleep emoji small
                 emojiHTML = `
-                    <div onclick="toggleDetails()" class="emoji-main select-none">
-                        ${currentEmoji}
+                    <div onclick="toggleDetails()" class="select-none">
+                        <div class="emoji-main">${currentWind.weatherEmoji}</div>
+                        <div class="emoji-small mt-2">${currentSleepEmoji}</div>
                     </div>
                 `;
                 if (tonightForecast) {
