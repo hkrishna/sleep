@@ -130,7 +130,7 @@
             const now = new Date();
             
             // Group by date and analyze nighttime winds (9PM-7AM)
-            for (let dayOffset = 0; dayOffset < 10; dayOffset++) {
+            for (let dayOffset = 0; dayOffset < 5; dayOffset++) {
                 const targetDate = new Date(now);
                 targetDate.setDate(targetDate.getDate() + dayOffset);
                 targetDate.setHours(21, 0, 0, 0); // 9PM
@@ -230,61 +230,28 @@
             const minutesOld = Math.floor(cacheAge / 60000);
             
             document.getElementById('app').innerHTML = `
-                <div class="max-w-2xl w-full">
+                <div class="max-w-lg w-full text-center">
                     ${isDemo ? `
-                        <div class="text-center mb-6">
-                            <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2 inline-block">
-                                <p class="text-amber-300 text-xs font-medium">DEMO MODE</p>
-                            </div>
+                        <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2 mb-8 inline-block">
+                            <p class="text-amber-300 text-xs font-medium">DEMO MODE</p>
                         </div>
                     ` : minutesOld > 0 ? `
-                        <div class="text-center mb-6">
-                            <div class="bg-slate-700/30 border border-slate-600/30 rounded-xl px-4 py-2 inline-block">
-                                <p class="text-slate-400 text-xs">Updated ${minutesOld} min ago</p>
-                            </div>
+                        <div class="bg-slate-700/30 border border-slate-600/30 rounded-xl px-4 py-2 mb-8 inline-block">
+                            <p class="text-slate-400 text-xs">Updated ${minutesOld} min ago</p>
                         </div>
                     ` : ''}
                     
-                    <!-- Tonight -->
-                    <div class="text-center mb-8">
-                        <p class="text-slate-500 text-sm mb-2">TONIGHT</p>
-                        <div onclick="toggleDetails()" class="emoji-main select-none">
-                            ${emoji}
-                        </div>
-                        <p class="text-slate-400 text-sm mt-4">
-                            ${today.maxWind} mph max
-                        </p>
+                    <div onclick="toggleDetails()" class="emoji-main select-none">
+                        ${emoji}
                     </div>
-
-                    <!-- 10-day forecast -->
-                    <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
-                        <p class="text-slate-400 text-sm mb-4 text-center">NEXT 10 NIGHTS</p>
-                        <div class="grid grid-cols-5 gap-4">
-                            ${forecast.slice(0, 10).map((day, idx) => {
-                                const dayEmoji = day.shouldSleepInStudy ? '🫨' : '😴';
-                                const date = new Date(day.date);
-                                const dateStr = idx === 0 ? 'Tonight' : 
-                                               idx === 1 ? 'Tomorrow' :
-                                               date.toLocaleDateString('en-US', { weekday: 'short' });
-                                
-                                return `
-                                    <div class="text-center">
-                                        <p class="text-slate-500 text-xs mb-2">${dateStr}</p>
-                                        <div class="emoji-small mb-2">${dayEmoji}</div>
-                                        <p class="text-slate-400 text-xs font-medium ${day.maxWind >= 20 ? 'text-orange-400' : 'text-emerald-400'}">
-                                            ${day.maxWind}
-                                        </p>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
-
-                    <div class="text-center mt-6">
-                        <button onclick="toggleDetails()" class="text-slate-500 hover:text-slate-300 text-xs transition-colors">
-                            tap for details
-                        </button>
-                    </div>
+                    
+                    <p class="text-slate-400 text-sm mt-6 mb-8">
+                        ${today.maxWind} mph max tonight
+                    </p>
+                    
+                    <button onclick="toggleDetails()" class="text-slate-500 hover:text-slate-300 text-xs transition-colors">
+                        tap for details
+                    </button>
                 </div>
             `;
         }
@@ -353,9 +320,9 @@
 
                     <!-- All days forecast -->
                     <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 mb-6">
-                        <p class="text-slate-400 text-sm mb-4">10-Day Forecast</p>
+                        <p class="text-slate-400 text-sm mb-4">5-Day Forecast</p>
                         <div class="space-y-3">
-                            ${forecast.slice(0, 10).map((day, idx) => {
+                            ${forecast.slice(0, 5).map((day, idx) => {
                                 const dayEmoji = day.shouldSleepInStudy ? '🫨' : '😴';
                                 const date = new Date(day.date);
                                 const dateStr = idx === 0 ? 'Tonight' : 
