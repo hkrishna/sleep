@@ -382,10 +382,6 @@
                 return;
             }
 
-            const etNow = getETTime();
-            const etHour = etNow.getHours();
-            const isBefore9PM = etHour < 21;
-            
             const currentWind = getCurrentWind(rawForecastList);
             const tonightForecast = getTonightForecast(rawForecastList);
             
@@ -394,50 +390,15 @@
                 return;
             }
             
-            const currentSleepEmoji = currentWind.shouldSleepInStudy ? '🫨' : '😴';
-            const tonightSleepEmoji = tonightForecast && tonightForecast.shouldSleepInStudy ? '🫨' : '😴';
+            // Current wind emoji: 🌋 if windy (>= 20 mph), ⛰️ if not windy
+            const currentEmoji = currentWind.maxWind >= 20 ? '🌋' : '⛰️';
+            
+            // Tonight emoji: 🫨 if windy tonight (>= 20 mph), 😴 if not windy
+            const tonightEmoji = tonightForecast && tonightForecast.maxWind >= 20 ? '🫨' : '😴';
             
             const cached = localStorage.getItem('weatherCache');
             const cacheAge = cached ? Date.now() - JSON.parse(cached).timestamp : 0;
             const minutesOld = Math.floor(cacheAge / 60000);
-            
-            let emojiHTML = '';
-            let textHTML = '';
-            
-            if (isBefore9PM && tonightForecast) {
-                // Show both current and tonight - weather emoji big, sleep emoji small
-                emojiHTML = `
-                    <div class="space-y-8">
-                        <div>
-                            <div onclick="toggleDetails()" class="select-none">
-                                <div class="emoji-main">${currentWind.weatherEmoji}</div>
-                                <div class="emoji-small mt-2">${currentSleepEmoji}</div>
-                            </div>
-                            <p class="text-slate-400 text-sm mt-4">Now: ${currentWind.maxWind} mph</p>
-                        </div>
-                        <div>
-                            <div onclick="toggleDetails()" class="select-none">
-                                <div class="emoji-main">${tonightForecast.weatherEmoji || currentWind.weatherEmoji}</div>
-                                <div class="emoji-small mt-2">${tonightSleepEmoji}</div>
-                            </div>
-                            <p class="text-slate-400 text-sm mt-4">Tonight: ${tonightForecast.maxWind} mph max</p>
-                        </div>
-                    </div>
-                `;
-            } else {
-                // Show just one - weather emoji big, sleep emoji small
-                emojiHTML = `
-                    <div onclick="toggleDetails()" class="select-none">
-                        <div class="emoji-main">${currentWind.weatherEmoji}</div>
-                        <div class="emoji-small mt-2">${currentSleepEmoji}</div>
-                    </div>
-                `;
-                if (tonightForecast) {
-                    textHTML = `<p class="text-slate-400 text-sm mt-6 mb-8">${tonightForecast.maxWind} mph max tonight</p>`;
-                } else {
-                    textHTML = `<p class="text-slate-400 text-sm mt-6 mb-8">${currentWind.maxWind} mph now</p>`;
-                }
-            }
             
             document.getElementById('app').innerHTML = `
                 <div class="max-w-lg w-full text-center">
@@ -451,10 +412,12 @@
                         </div>
                     ` : ''}
                     
-                    ${emojiHTML}
-                    ${textHTML}
+                    <div onclick="toggleDetails()" class="select-none flex items-center justify-center gap-4">
+                        <div class="emoji-main">${currentEmoji}</div>
+                        <div class="emoji-main">${tonightEmoji}</div>
+                    </div>
                     
-                    <button onclick="toggleDetails()" class="text-slate-500 hover:text-slate-300 text-xs transition-colors">
+                    <button onclick="toggleDetails()" class="text-slate-500 hover:text-slate-300 text-xs transition-colors mt-8">
                         tap for details
                     </button>
                 </div>
