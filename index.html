@@ -51,7 +51,87 @@
         const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
         let forecastData = null;
+        let rawForecastList = null;
         let showingDetails = false;
+        let isDemoMode = false;
+
+        function getETTime() {
+            const now = new Date();
+            return new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+        }
+
+        function getCurrentWind(forecastList) {
+            if (!forecastList || forecastList.length === 0) return null;
+            
+            const now = new Date();
+            const nowUnix = Math.floor(now.getTime() / 1000);
+            
+            // Find the closest forecast entry to current time
+            let closest = forecastList[0];
+            let minDiff = Math.abs(closest.dt - nowUnix);
+            
+            for (const item of forecastList) {
+                const diff = Math.abs(item.dt - nowUnix);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = item;
+                }
+            }
+            
+            const windSpeed = Math.round(closest.wind.speed);
+            const windGust = closest.wind.gust ? Math.round(closest.wind.gust) : windSpeed;
+            const maxWind = Math.max(windSpeed, windGust);
+            
+            return {
+                speed: windSpeed,
+                gust: windGust,
+                maxWind: maxWind,
+                shouldSleepInStudy: maxWind >= 20
+            };
+        }
+
+        function getTonightForecast(forecastList) {
+            if (!forecastList || forecastList.length === 0) return null;
+            
+            const etNow = getETTime();
+            const etHour = etNow.getHours();
+            
+            // If it's already past 9PM ET, tonight has already started
+            let targetDate = new Date(etNow);
+            if (etHour >= 21) {
+                // Already in tonight, so "tonight" is the current night
+                targetDate.setHours(21, 0, 0, 0);
+            } else {
+                // Before 9PM, so tonight starts at 9PM today
+                targetDate.setHours(21, 0, 0, 0);
+            }
+            
+            const nextMorning = new Date(targetDate);
+            nextMorning.setHours(31, 0, 0, 0); // 7AM next day
+            
+            const nightPeriods = forecastList.filter(item => {
+                const itemTime = new Date(item.dt * 1000);
+                const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                const hour = itemET.getHours();
+                return itemET >= targetDate && itemET <= nextMorning &&
+                       (hour >= 21 || hour < 7);
+            });
+            
+            if (nightPeriods.length === 0) return null;
+            
+            const windSpeeds = nightPeriods.map(item => {
+                const windSpeed = Math.round(item.wind.speed);
+                const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
+                return Math.max(windSpeed, windGust);
+            });
+            
+            const maxWind = Math.max(...windSpeeds);
+            
+            return {
+                maxWind: maxWind,
+                shouldSleepInStudy: maxWind >= 20
+            };
+        }
 
         async function fetchWeatherData() {
             try {
@@ -59,15 +139,19 @@
                 if (cachedData) {
                     console.log('Using cached weather data');
                     forecastData = cachedData.forecast;
+                    rawForecastList = cachedData.rawForecastList;
+                    isDemoMode = cachedData.isDemo;
                     renderSimple(cachedData.forecast, cachedData.isDemo);
                     return;
                 }
 
                 if (USE_DEMO_MODE) {
                     const demoData = generateDemoData();
+                    rawForecastList = demoData;
                     const forecast = analyzeForecast(demoData);
                     forecastData = forecast;
-                    cacheWeatherData(forecast, true);
+                    isDemoMode = true;
+                    cacheWeatherData(forecast, demoData, true);
                     renderSimple(forecast, true);
                     return;
                 }
@@ -90,9 +174,11 @@
                     throw new Error('No forecast data available');
                 }
                 
+                rawForecastList = data.list;
                 const forecast = analyzeForecast(data.list);
                 forecastData = forecast;
-                cacheWeatherData(forecast, false);
+                isDemoMode = false;
+                cacheWeatherData(forecast, data.list, false);
                 renderSimple(forecast, false);
             } catch (error) {
                 console.error('Weather fetch error:', error);
@@ -127,21 +213,22 @@
 
         function analyzeForecast(forecastList) {
             const dailyForecasts = [];
-            const now = new Date();
+            const etNow = getETTime();
             
-            // Group by date and analyze nighttime winds (9PM-7AM)
+            // Group by date and analyze nighttime winds (9PM-7AM ET)
             for (let dayOffset = 0; dayOffset < 5; dayOffset++) {
-                const targetDate = new Date(now);
+                const targetDate = new Date(etNow);
                 targetDate.setDate(targetDate.getDate() + dayOffset);
-                targetDate.setHours(21, 0, 0, 0); // 9PM
+                targetDate.setHours(21, 0, 0, 0); // 9PM ET
                 
                 const nextMorning = new Date(targetDate);
-                nextMorning.setHours(31, 0, 0, 0); // 7AM next day
+                nextMorning.setHours(31, 0, 0, 0); // 7AM next day ET
                 
                 const nightPeriods = forecastList.filter(item => {
                     const itemTime = new Date(item.dt * 1000);
-                    const hour = itemTime.getHours();
-                    return itemTime >= targetDate && itemTime <= nextMorning &&
+                    const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                    const hour = itemET.getHours();
+                    return itemET >= targetDate && itemET <= nextMorning &&
                            (hour >= 21 || hour < 7);
                 });
                 
@@ -188,10 +275,11 @@
             }
         }
 
-        function cacheWeatherData(forecast, isDemo) {
+        function cacheWeatherData(forecast, rawForecastList, isDemo) {
             try {
                 const cacheData = {
                     forecast: forecast,
+                    rawForecastList: rawForecastList,
                     isDemo: isDemo,
                     timestamp: Date.now()
                 };
@@ -212,22 +300,69 @@
             if (showingDetails) {
                 renderDetails(forecastData);
             } else {
-                renderSimple(forecastData, USE_DEMO_MODE);
+                renderSimple(forecastData, isDemoMode);
             }
         }
 
         function renderSimple(forecast, isDemo) {
-            if (!forecast || forecast.length === 0) {
+            if (!forecast || forecast.length === 0 || !rawForecastList) {
                 renderError('No forecast data available');
                 return;
             }
 
-            const today = forecast[0];
-            const emoji = today.shouldSleepInStudy ? '🫨' : '😴';
+            const etNow = getETTime();
+            const etHour = etNow.getHours();
+            const isBefore9PM = etHour < 21;
+            
+            const currentWind = getCurrentWind(rawForecastList);
+            const tonightForecast = getTonightForecast(rawForecastList);
+            
+            if (!currentWind) {
+                renderError('Unable to get current wind conditions');
+                return;
+            }
+            
+            const currentEmoji = currentWind.shouldSleepInStudy ? '🫨' : '😴';
+            const tonightEmoji = tonightForecast && tonightForecast.shouldSleepInStudy ? '🫨' : '😴';
             
             const cached = localStorage.getItem('weatherCache');
             const cacheAge = cached ? Date.now() - JSON.parse(cached).timestamp : 0;
             const minutesOld = Math.floor(cacheAge / 60000);
+            
+            let emojiHTML = '';
+            let textHTML = '';
+            
+            if (isBefore9PM && tonightForecast) {
+                // Show both current and tonight emojis
+                emojiHTML = `
+                    <div class="space-y-8">
+                        <div>
+                            <div onclick="toggleDetails()" class="emoji-main select-none">
+                                ${currentEmoji}
+                            </div>
+                            <p class="text-slate-400 text-sm mt-4">Now: ${currentWind.maxWind} mph</p>
+                        </div>
+                        <div>
+                            <div onclick="toggleDetails()" class="emoji-main select-none">
+                                ${tonightEmoji}
+                            </div>
+                            <p class="text-slate-400 text-sm mt-4">Tonight: ${tonightForecast.maxWind} mph max</p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Show just one emoji (current/nighttime)
+                emojiHTML = `
+                    <div onclick="toggleDetails()" class="emoji-main select-none">
+                        ${currentEmoji}
+                    </div>
+                `;
+                if (tonightForecast) {
+                    textHTML = `<p class="text-slate-400 text-sm mt-6 mb-8">${tonightForecast.maxWind} mph max tonight</p>`;
+                } else {
+                    textHTML = `<p class="text-slate-400 text-sm mt-6 mb-8">${currentWind.maxWind} mph now</p>`;
+                }
+            }
             
             document.getElementById('app').innerHTML = `
                 <div class="max-w-lg w-full text-center">
@@ -241,13 +376,8 @@
                         </div>
                     ` : ''}
                     
-                    <div onclick="toggleDetails()" class="emoji-main select-none">
-                        ${emoji}
-                    </div>
-                    
-                    <p class="text-slate-400 text-sm mt-6 mb-8">
-                        ${today.maxWind} mph max tonight
-                    </p>
+                    ${emojiHTML}
+                    ${textHTML}
                     
                     <button onclick="toggleDetails()" class="text-slate-500 hover:text-slate-300 text-xs transition-colors">
                         tap for details
