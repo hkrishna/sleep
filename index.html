@@ -54,6 +54,7 @@
         let rawForecastList = null;
         let showingDetails = false;
         let isDemoMode = false;
+        let showingNow = true; // true = showing "now", false = showing "tonight"
 
         function getETTime() {
             const now = new Date();
@@ -372,8 +373,14 @@
             if (showingDetails) {
                 renderDetails(forecastData);
             } else {
+                showingNow = true; // Reset to "now" view when returning to simple view
                 renderSimple(forecastData, isDemoMode);
             }
+        }
+
+        function toggleView() {
+            showingNow = !showingNow;
+            renderSimple(forecastData, isDemoMode);
         }
 
         function renderSimple(forecast, isDemo) {
@@ -400,6 +407,13 @@
             const cacheAge = cached ? Date.now() - JSON.parse(cached).timestamp : 0;
             const minutesOld = Math.floor(cacheAge / 60000);
             
+            // Determine which emoji and label to show
+            const displayEmoji = showingNow ? currentEmoji : tonightEmoji;
+            const viewLabel = showingNow ? 'Right Now' : 'Tonight';
+            const statusText = showingNow 
+                ? (currentWind.maxWind >= 20 ? 'Windy' : 'Calm')
+                : (tonightForecast && tonightForecast.maxWind >= 20 ? 'Windy' : 'Calm');
+            
             document.getElementById('app').innerHTML = `
                 <div class="max-w-lg w-full text-center">
                     ${isDemo ? `
@@ -412,12 +426,33 @@
                         </div>
                     ` : ''}
                     
-                    <div onclick="toggleDetails()" class="select-none flex items-center justify-center gap-4">
-                        <div class="emoji-main">${currentEmoji}</div>
-                        <div class="emoji-main">${tonightEmoji}</div>
+                    <div onclick="toggleDetails()" class="select-none mb-6">
+                        <div class="emoji-main">${displayEmoji}</div>
+                        <p class="text-slate-400 text-sm mt-4">${viewLabel}</p>
+                        <p class="text-slate-500 text-xs mt-1">${statusText}</p>
                     </div>
                     
-                    <button onclick="toggleDetails()" class="text-slate-500 hover:text-slate-300 text-xs transition-colors mt-8">
+                    <!-- Toggle button -->
+                    <div class="flex items-center justify-center gap-3 mb-6">
+                        <button onclick="showingNow = true; renderSimple(forecastData, isDemoMode);" 
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                    showingNow 
+                                        ? 'bg-amber-500 text-slate-900' 
+                                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                }">
+                            Now
+                        </button>
+                        <button onclick="showingNow = false; renderSimple(forecastData, isDemoMode);" 
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                    !showingNow 
+                                        ? 'bg-amber-500 text-slate-900' 
+                                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                }">
+                            Tonight
+                        </button>
+                    </div>
+                    
+                    <button onclick="toggleDetails()" class="text-slate-500 hover:text-slate-300 text-xs transition-colors">
                         tap for details
                     </button>
                 </div>
