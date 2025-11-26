@@ -579,17 +579,19 @@
                 const avgWind = Math.round(windSpeeds.reduce((a, b) => a + b, 0) / windSpeeds.length);
                 
                 // Calculate windy time for full day (7AM-7AM) broken down by day/night
-                const dayStart = new Date(targetDate);
-                dayStart.setHours(7, 0, 0, 0); // 7AM
-                dayStart.setDate(dayStart.getDate() - 1); // Previous day 7AM
+                // Use the same filtering approach as nightPeriods but for the full day
+                const dayStart = new Date(etNow);
+                dayStart.setDate(dayStart.getDate() + dayOffset);
+                dayStart.setHours(7, 0, 0, 0); // 7AM of target day
                 
                 const dayEnd = new Date(dayStart);
-                dayEnd.setDate(dayEnd.getDate() + 1); // Next day 7AM
+                dayEnd.setDate(dayEnd.getDate() + 1); // 7AM next day
                 
-                // Get all periods for the full day (7AM-7AM)
+                // Get all periods for the full day (7AM-7AM) - same logic as nightPeriods
                 const allDayPeriods = forecastList.filter(item => {
                     const itemTime = new Date(item.dt * 1000);
                     const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                    // Check if item falls within the day range (7AM to 7AM next day)
                     return itemET >= dayStart && itemET < dayEnd;
                 }).sort((a, b) => a.dt - b.dt);
                 
