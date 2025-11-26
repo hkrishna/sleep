@@ -252,15 +252,56 @@
                 windyPeriods.push(currentPeriod);
             }
             
-            // Calculate durations and format
+            // Calculate durations and format, with day/night classification
             return windyPeriods.map(period => {
                 const durationMs = period.end.getTime() - period.start.getTime();
                 const durationMins = Math.round(durationMs / (1000 * 60));
                 
+                // Determine if period spans day/night boundary
+                const startHour = period.start.getHours();
+                const endHour = period.end.getHours();
+                
+                // Daytime: 7AM-7PM (7-19), Nighttime: 7PM-7AM (19-7)
+                let dayMins = 0;
+                let nightMins = 0;
+                
+                // Split period into day and night portions
+                let currentTime = new Date(period.start);
+                const endTime = new Date(period.end);
+                
+                while (currentTime < endTime) {
+                    const currentHour = currentTime.getHours();
+                    const isDaytime = currentHour >= 7 && currentHour < 19;
+                    
+                    // Find next boundary (7AM or 7PM) or end of period
+                    let nextBoundary = new Date(currentTime);
+                    if (isDaytime) {
+                        // Currently daytime, next boundary is 7PM
+                        nextBoundary.setHours(19, 0, 0, 0);
+                    } else {
+                        // Currently nighttime, next boundary is 7AM next day
+                        nextBoundary.setDate(nextBoundary.getDate() + 1);
+                        nextBoundary.setHours(7, 0, 0, 0);
+                    }
+                    
+                    const segmentEnd = nextBoundary < endTime ? nextBoundary : endTime;
+                    const segmentMins = Math.round((segmentEnd.getTime() - currentTime.getTime()) / (1000 * 60));
+                    
+                    if (isDaytime) {
+                        dayMins += segmentMins;
+                    } else {
+                        nightMins += segmentMins;
+                    }
+                    
+                    currentTime = segmentEnd;
+                }
+                
                 return {
                     startTime: formatTimeET(period.start),
                     endTime: formatTimeET(period.end),
-                    durationMins: durationMins
+                    durationMins: durationMins,
+                    dayMins: dayMins,
+                    nightMins: nightMins
                 };
             });
         }
@@ -306,16 +347,42 @@
             const firstNightPeriod = nightPeriods[0];
             const weatherEmoji = getWeatherEmoji(firstNightPeriod);
             
-            // Get windy periods
+            // Get windy periods from now until next day 7AM
             const windyPeriods = getWindyPeriods(forecastList);
             const totalWindyMins = windyPeriods.reduce((sum, p) => sum + p.durationMins, 0);
+            
+            // Calculate daytime (current time to 7PM today) and nighttime (7PM to 7AM next day) windy times
+            const today7PM = new Date(etNow);
+            today7PM.setHours(19, 0, 0, 0); // 7PM today
+            if (today7PM < etNow) {
+                // Already past 7PM, no daytime period
+                today7PM.setDate(today7PM.getDate() + 1);
+            }
+            
+            const nextDay7AM = new Date(etNow);
+            nextDay7AM.setDate(nextDay7AM.getDate() + 1);
+            nextDay7AM.setHours(7, 0, 0, 0); // 7AM next day
+            
+            let dayWindyMins = 0;
+            let nightWindyMins = 0;
+            
+            for (const period of windyPeriods) {
+                dayWindyMins += period.dayMins || 0;
+                nightWindyMins += period.nightMins || 0;
+            }
+            
+            // Check if we're currently in nighttime (after 7PM or before 7AM)
+            const isCurrentlyNighttime = etHour >= 19 || etHour < 7;
             
             return {
                 maxWind: maxWind,
                 shouldSleepInStudy: maxWind >= 20,
                 weatherEmoji: weatherEmoji,
                 windyPeriods: windyPeriods,
-                totalWindyMins: totalWindyMins
+                totalWindyMins: totalWindyMins,
+                dayWindyMins: dayWindyMins,
+                nightWindyMins: nightWindyMins,
+                isCurrentlyNighttime: isCurrentlyNighttime
             };
         }
 
@@ -505,40 +572,83 @@
                 const maxWind = Math.max(...windSpeeds);
                 const avgWind = Math.round(windSpeeds.reduce((a, b) => a + b, 0) / windSpeeds.length);
                 
-                // Calculate windy time directly from nightPeriods
-                let windyTimeMins = 0;
-                nightPeriods.sort((a, b) => a.dt - b.dt);
+                // Calculate windy time for full day (7AM-7AM) broken down by day/night
+                const dayStart = new Date(targetDate);
+                dayStart.setHours(7, 0, 0, 0); // 7AM
+                dayStart.setDate(dayStart.getDate() - 1); // Previous day 7AM
                 
-                for (let i = 0; i < nightPeriods.length; i++) {
-                    const item = nightPeriods[i];
+                const dayEnd = new Date(dayStart);
+                dayEnd.setDate(dayEnd.getDate() + 1); // Next day 7AM
+                
+                // Get all periods for the full day (7AM-7AM)
+                const allDayPeriods = forecastList.filter(item => {
+                    const itemTime = new Date(item.dt * 1000);
+                    const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                    return itemET >= dayStart && itemET < dayEnd;
+                }).sort((a, b) => a.dt - b.dt);
+                
+                let dayWindyMins = 0;
+                let nightWindyMins = 0;
+                let totalWindyMins = 0;
+                
+                for (let i = 0; i < allDayPeriods.length; i++) {
+                    const item = allDayPeriods[i];
+                    const itemTime = new Date(item.dt * 1000);
+                    const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
                     const windSpeed = Math.round(item.wind.speed);
                     const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
                     const maxWindForPeriod = Math.max(windSpeed, windGust);
                     
                     if (maxWindForPeriod >= 20) {
-                        const itemTime = new Date(item.dt * 1000);
-                        const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
-                        
-                        // Each forecast represents 3 hours, or until the next forecast
                         let periodStart = itemET;
                         let periodEnd;
                         
-                        if (i === 0 && targetDate > itemET) {
-                            periodStart = targetDate;
+                        if (i === 0 && dayStart > itemET) {
+                            periodStart = dayStart;
                         }
                         
-                        if (i < nightPeriods.length - 1) {
-                            const nextItemTime = new Date(nightPeriods[i + 1].dt * 1000);
+                        if (i < allDayPeriods.length - 1) {
+                            const nextItemTime = new Date(allDayPeriods[i + 1].dt * 1000);
                             periodEnd = new Date(nextItemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
                         } else {
-                            // Last period - extend to nextMorning or 3 hours, whichever comes first
                             const threeHoursLater = new Date(itemET.getTime() + 3 * 60 * 60 * 1000);
-                            periodEnd = threeHoursLater < nextMorning ? threeHoursLater : nextMorning;
+                            periodEnd = threeHoursLater < dayEnd ? threeHoursLater : dayEnd;
+                        }
+                        
+                        // Split period into day and night portions
+                        let currentTime = new Date(periodStart);
+                        const endTime = new Date(periodEnd);
+                        
+                        while (currentTime < endTime) {
+                            const currentHour = currentTime.getHours();
+                            const isDaytime = currentHour >= 7 && currentHour < 19;
+                            
+                            // Find next boundary (7AM or 7PM) or end of period
+                            let nextBoundary = new Date(currentTime);
+                            if (isDaytime) {
+                                nextBoundary.setHours(19, 0, 0, 0);
+                            } else {
+                                if (currentHour >= 19) {
+                                    nextBoundary.setDate(nextBoundary.getDate() + 1);
+                                }
+                                nextBoundary.setHours(7, 0, 0, 0);
+                            }
+                            
+                            const segmentEnd = nextBoundary < endTime ? nextBoundary : endTime;
+                            const segmentMins = Math.round((segmentEnd.getTime() - currentTime.getTime()) / (1000 * 60));
+                            
+                            if (isDaytime) {
+                                dayWindyMins += segmentMins;
+                            } else {
+                                nightWindyMins += segmentMins;
+                            }
+                            
+                            currentTime = segmentEnd;
                         }
                         
                         const durationMs = periodEnd.getTime() - periodStart.getTime();
                         const durationMins = Math.round(durationMs / (1000 * 60));
-                        windyTimeMins += Math.max(0, durationMins);
+                        totalWindyMins += Math.max(0, durationMins);
                     }
                 }
                 
@@ -548,7 +658,9 @@
                     avgWind: avgWind,
                     shouldSleepInStudy: maxWind >= 20,
                     nightPeriods: nightPeriods.slice(0, 4),
-                    windyTimeMins: windyTimeMins
+                    windyTimeMins: totalWindyMins,
+                    dayWindyMins: dayWindyMins,
+                    nightWindyMins: nightWindyMins
                 });
             }
             
@@ -697,8 +809,20 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${tonightForecast.windyPeriods.map(period => `
+                                        ${!tonightForecast.isCurrentlyNighttime && tonightForecast.dayWindyMins > 0 ? `
+                                            <tr class="border-b border-slate-700/50">
+                                                <td class="py-2 text-slate-300 text-sm">☀️ Now - 7PM (Daytime)</td>
+                                                <td class="py-2 text-slate-300 text-sm text-right">${formatDuration(tonightForecast.dayWindyMins)}</td>
+                                            </tr>
+                                        ` : ''}
+                                        ${tonightForecast.nightWindyMins > 0 ? `
                                             <tr class="border-b border-slate-700/50 last:border-0">
+                                                <td class="py-2 text-slate-300 text-sm">🌙 7PM - 7AM (Nighttime)</td>
+                                                <td class="py-2 text-slate-300 text-sm text-right">${formatDuration(tonightForecast.nightWindyMins)}</td>
+                                            </tr>
+                                        ` : ''}
+                                        ${tonightForecast.windyPeriods.map((period, idx) => `
+                                            <tr class="border-b border-slate-700/50 ${idx === tonightForecast.windyPeriods.length - 1 ? 'last:border-0' : ''}">
                                                 <td class="py-2 text-slate-300 text-sm">${period.startTime} - ${period.endTime}</td>
                                                 <td class="py-2 text-slate-300 text-sm text-right">${formatDuration(period.durationMins)}</td>
                                             </tr>
@@ -761,8 +885,10 @@
                                                 </span>
                                             </div>
                                         </div>
-                                        <div class="ml-12 text-xs text-slate-400">
-                                            Windy time: ${formatDuration(day.windyTimeMins || 0)}
+                                        <div class="ml-12 text-xs text-slate-400 space-y-1">
+                                            ${day.dayWindyMins > 0 ? `<div>☀️ ${formatDuration(day.dayWindyMins)}</div>` : ''}
+                                            ${day.nightWindyMins > 0 ? `<div>🌙 ${formatDuration(day.nightWindyMins)}</div>` : ''}
+                                            ${(day.dayWindyMins || 0) === 0 && (day.nightWindyMins || 0) === 0 ? `<div>No windy time</div>` : ''}
                                         </div>
                                     </div>
                                 `;
