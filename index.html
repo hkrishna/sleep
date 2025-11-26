@@ -417,52 +417,56 @@
         }
 
         function calculateWindyTimeForDay(forecastList, startDate, endDate) {
-            const startUnix = Math.floor(startDate.getTime() / 1000);
-            const endUnix = Math.floor(endDate.getTime() / 1000);
+            // Convert startDate and endDate to ET timezone for proper comparison
+            const startET = new Date(startDate.toLocaleString("en-US", {timeZone: "America/New_York"}));
+            const endET = new Date(endDate.toLocaleString("en-US", {timeZone: "America/New_York"}));
             
-            // Get all forecast entries for this day's night period
-            const relevantPeriods = forecastList
-                .filter(item => item.dt >= startUnix && item.dt <= endUnix)
-                .map((item, index, array) => {
-                    const itemTime = new Date(item.dt * 1000);
-                    const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
-                    const windSpeed = Math.round(item.wind.speed);
-                    const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
-                    const maxWind = Math.max(windSpeed, windGust);
-                    
-                    // Each forecast represents a 3-hour period
-                    let startTime = itemET;
-                    if (index === 0 && startDate > itemET) {
-                        startTime = startDate;
-                    }
-                    
-                    let endTime;
-                    if (index < array.length - 1) {
-                        const nextItemTime = new Date(array[index + 1].dt * 1000);
-                        endTime = new Date(nextItemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
-                    } else {
-                        const threeHoursLater = new Date(itemET.getTime() + 3 * 60 * 60 * 1000);
-                        endTime = threeHoursLater < endDate ? threeHoursLater : endDate;
-                    }
-                    
-                    return {
-                        startTime: startTime,
-                        endTime: endTime,
-                        maxWind: maxWind,
-                        isWindy: maxWind >= 20
-                    };
-                })
-                .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+            // Get all forecast entries for this day's night period (same logic as analyzeForecast)
+            const nightPeriods = forecastList.filter(item => {
+                const itemTime = new Date(item.dt * 1000);
+                const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                const hour = itemET.getHours();
+                return itemET >= startET && itemET <= endET &&
+                       (hour >= 21 || hour < 7);
+            });
             
-            if (relevantPeriods.length === 0) return 0;
+            if (nightPeriods.length === 0) return 0;
             
-            // Calculate total windy time
+            // Sort by time
+            nightPeriods.sort((a, b) => a.dt - b.dt);
+            
+            // Calculate windy periods
             let totalWindyMins = 0;
-            for (const period of relevantPeriods) {
-                if (period.isWindy) {
-                    const durationMs = period.endTime.getTime() - period.startTime.getTime();
+            
+            for (let i = 0; i < nightPeriods.length; i++) {
+                const item = nightPeriods[i];
+                const itemTime = new Date(item.dt * 1000);
+                const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                const windSpeed = Math.round(item.wind.speed);
+                const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
+                const maxWind = Math.max(windSpeed, windGust);
+                
+                if (maxWind >= 20) {
+                    // Determine the period this forecast covers
+                    let periodStart = itemET;
+                    let periodEnd;
+                    
+                    if (i === 0 && startET > itemET) {
+                        periodStart = startET;
+                    }
+                    
+                    if (i < nightPeriods.length - 1) {
+                        const nextItemTime = new Date(nightPeriods[i + 1].dt * 1000);
+                        periodEnd = new Date(nextItemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                    } else {
+                        // Last period - extend to endDate or 3 hours, whichever comes first
+                        const threeHoursLater = new Date(itemET.getTime() + 3 * 60 * 60 * 1000);
+                        periodEnd = threeHoursLater < endET ? threeHoursLater : endET;
+                    }
+                    
+                    const durationMs = periodEnd.getTime() - periodStart.getTime();
                     const durationMins = Math.round(durationMs / (1000 * 60));
-                    totalWindyMins += durationMins;
+                    totalWindyMins += Math.max(0, durationMins);
                 }
             }
             
@@ -501,8 +505,42 @@
                 const maxWind = Math.max(...windSpeeds);
                 const avgWind = Math.round(windSpeeds.reduce((a, b) => a + b, 0) / windSpeeds.length);
                 
-                // Calculate windy time for this day
-                const windyTimeMins = calculateWindyTimeForDay(forecastList, targetDate, nextMorning);
+                // Calculate windy time directly from nightPeriods
+                let windyTimeMins = 0;
+                nightPeriods.sort((a, b) => a.dt - b.dt);
+                
+                for (let i = 0; i < nightPeriods.length; i++) {
+                    const item = nightPeriods[i];
+                    const windSpeed = Math.round(item.wind.speed);
+                    const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
+                    const maxWindForPeriod = Math.max(windSpeed, windGust);
+                    
+                    if (maxWindForPeriod >= 20) {
+                        const itemTime = new Date(item.dt * 1000);
+                        const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                        
+                        // Each forecast represents 3 hours, or until the next forecast
+                        let periodStart = itemET;
+                        let periodEnd;
+                        
+                        if (i === 0 && targetDate > itemET) {
+                            periodStart = targetDate;
+                        }
+                        
+                        if (i < nightPeriods.length - 1) {
+                            const nextItemTime = new Date(nightPeriods[i + 1].dt * 1000);
+                            periodEnd = new Date(nextItemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                        } else {
+                            // Last period - extend to nextMorning or 3 hours, whichever comes first
+                            const threeHoursLater = new Date(itemET.getTime() + 3 * 60 * 60 * 1000);
+                            periodEnd = threeHoursLater < nextMorning ? threeHoursLater : nextMorning;
+                        }
+                        
+                        const durationMs = periodEnd.getTime() - periodStart.getTime();
+                        const durationMins = Math.round(durationMs / (1000 * 60));
+                        windyTimeMins += Math.max(0, durationMins);
+                    }
+                }
                 
                 dailyForecasts.push({
                     date: targetDate,
