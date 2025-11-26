@@ -139,6 +139,118 @@
             };
         }
 
+        function formatTimeET(date) {
+            const etDate = new Date(date.toLocaleString("en-US", {timeZone: "America/New_York"}));
+            const hours = etDate.getHours();
+            const minutes = etDate.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            const displayMinutes = minutes > 0 ? `:${minutes.toString().padStart(2, '0')}` : '';
+            return `${displayHours}${displayMinutes}${ampm}`;
+        }
+
+        function getWindyPeriods(forecastList) {
+            if (!forecastList || forecastList.length === 0) return [];
+            
+            const etNow = getETTime();
+            const nowUnix = Math.floor(etNow.getTime() / 1000);
+            
+            // Get end time: 7AM ET next day
+            const nextMorning = new Date(etNow);
+            nextMorning.setDate(nextMorning.getDate() + 1);
+            nextMorning.setHours(7, 0, 0, 0);
+            const nextMorningUnix = Math.floor(nextMorning.getTime() / 1000);
+            
+            // Get all forecast entries from now until 7AM ET next day
+            const filtered = forecastList
+                .filter(item => item.dt >= nowUnix && item.dt <= nextMorningUnix)
+                .sort((a, b) => a.dt - b.dt);
+            
+            const relevantPeriods = filtered.map((item, index, array) => {
+                const itemTime = new Date(item.dt * 1000);
+                const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                const windSpeed = Math.round(item.wind.speed);
+                const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
+                const maxWind = Math.max(windSpeed, windGust);
+                
+                // Each forecast represents a 3-hour period
+                // For the first period, start from current time if it's the closest forecast
+                let startTime = itemET;
+                if (index === 0) {
+                    // Use current time if it's after the forecast time
+                    const currentET = new Date(etNow.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                    if (currentET > itemET) {
+                        startTime = currentET;
+                    }
+                }
+                
+                // End time is 3 hours later (or next forecast, whichever comes first)
+                let endTime;
+                if (index < array.length - 1) {
+                    const nextItemTime = new Date(array[index + 1].dt * 1000);
+                    endTime = new Date(nextItemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                } else {
+                    // Last period - extend to 7AM or 3 hours from original forecast start, whichever is earlier
+                    const threeHoursLater = new Date(itemET.getTime() + 3 * 60 * 60 * 1000);
+                    endTime = threeHoursLater < nextMorning ? threeHoursLater : nextMorning;
+                }
+                
+                return {
+                    dt: item.dt,
+                    startTime: startTime,
+                    endTime: endTime,
+                    maxWind: maxWind,
+                    isWindy: maxWind >= 20
+                };
+            });
+            
+            if (relevantPeriods.length === 0) return [];
+            
+            // Group consecutive windy periods
+            const windyPeriods = [];
+            let currentPeriod = null;
+            
+            for (let i = 0; i < relevantPeriods.length; i++) {
+                const period = relevantPeriods[i];
+                
+                if (period.isWindy) {
+                    if (!currentPeriod) {
+                        // Start a new windy period
+                        currentPeriod = {
+                            start: period.startTime,
+                            end: period.endTime
+                        };
+                    } else {
+                        // Extend current period - merge with previous
+                        currentPeriod.end = period.endTime;
+                    }
+                } else {
+                    if (currentPeriod) {
+                        // End current period
+                        windyPeriods.push(currentPeriod);
+                        currentPeriod = null;
+                    }
+                }
+            }
+            
+            // Add final period if still active
+            if (currentPeriod) {
+                windyPeriods.push(currentPeriod);
+            }
+            
+            // Calculate durations and format
+            return windyPeriods.map(period => {
+                const durationMs = period.end.getTime() - period.start.getTime();
+                const durationMins = Math.round(durationMs / (1000 * 60));
+                
+                return {
+                    startTime: formatTimeET(period.start),
+                    endTime: formatTimeET(period.end),
+                    durationMins: durationMins
+                };
+            });
+        }
+
         function getTonightForecast(forecastList) {
             if (!forecastList || forecastList.length === 0) return null;
             
@@ -180,10 +292,16 @@
             const firstNightPeriod = nightPeriods[0];
             const weatherEmoji = getWeatherEmoji(firstNightPeriod);
             
+            // Get windy periods
+            const windyPeriods = getWindyPeriods(forecastList);
+            const totalWindyMins = windyPeriods.reduce((sum, p) => sum + p.durationMins, 0);
+            
             return {
                 maxWind: maxWind,
                 shouldSleepInStudy: maxWind >= 20,
-                weatherEmoji: weatherEmoji
+                weatherEmoji: weatherEmoji,
+                windyPeriods: windyPeriods,
+                totalWindyMins: totalWindyMins
             };
         }
 
@@ -455,6 +573,36 @@
                             </button>
                         </div>
                     </div>
+                    
+                    ${!showingNow && tonightForecast && tonightForecast.windyPeriods && tonightForecast.windyPeriods.length > 0 ? `
+                        <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 mb-6 mt-6">
+                            <h2 class="text-slate-300 text-sm font-medium mb-4">
+                                Total Windy Time: ${tonightForecast.totalWindyMins} mins
+                            </h2>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left">
+                                    <thead>
+                                        <tr class="border-b border-slate-700">
+                                            <th class="pb-2 text-slate-400 text-xs font-medium">Time Period</th>
+                                            <th class="pb-2 text-slate-400 text-xs font-medium text-right">Duration</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${tonightForecast.windyPeriods.map(period => `
+                                            <tr class="border-b border-slate-700/50 last:border-0">
+                                                <td class="py-2 text-slate-300 text-sm">${period.startTime} - ${period.endTime}</td>
+                                                <td class="py-2 text-slate-300 text-sm text-right">${period.durationMins} mins</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ` : !showingNow && tonightForecast && tonightForecast.totalWindyMins === 0 ? `
+                        <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 mb-6 mt-6">
+                            <p class="text-slate-400 text-sm">No windy periods expected (wind &lt; 20 mph)</p>
+                        </div>
+                    ` : ''}
                     
                     <button onclick="toggleDetails()" class="text-slate-500 hover:text-slate-300 text-xs transition-colors">
                         tap for details
