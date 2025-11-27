@@ -141,14 +141,11 @@
             }
             
             const windSpeed = Math.round(closest.wind.speed);
-            const windGust = closest.wind.gust ? Math.round(closest.wind.gust) : windSpeed;
-            const maxWind = Math.max(windSpeed, windGust);
             
             return {
                 speed: windSpeed,
-                gust: windGust,
-                maxWind: maxWind,
-                shouldSleepInStudy: maxWind >= 20,
+                maxWind: windSpeed,
+                shouldSleepInStudy: windSpeed >= 20,
                 weatherEmoji: getWeatherEmoji(closest),
                 weatherData: closest
             };
@@ -199,8 +196,7 @@
                 const itemTime = new Date(item.dt * 1000);
                 const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
                 const windSpeed = Math.round(item.wind.speed);
-                const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
-                const maxWind = Math.max(windSpeed, windGust);
+                const maxWind = windSpeed;
                 
                 // Each forecast represents a 3-hour period
                 // For the first period, start from current time if it's the closest forecast
@@ -357,9 +353,7 @@
             if (nightPeriods.length === 0) return null;
             
             const windSpeeds = nightPeriods.map(item => {
-                const windSpeed = Math.round(item.wind.speed);
-                const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
-                return Math.max(windSpeed, windGust);
+                return Math.round(item.wind.speed);
             });
             
             const maxWind = Math.max(...windSpeeds);
@@ -531,8 +525,7 @@
                 const itemTime = new Date(item.dt * 1000);
                 const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
                 const windSpeed = Math.round(item.wind.speed);
-                const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
-                const maxWind = Math.max(windSpeed, windGust);
+                const maxWind = windSpeed;
                 
                 if (maxWind >= 20) {
                     // Determine the period this forecast covers
@@ -585,9 +578,7 @@
                 if (nightPeriods.length === 0) continue;
                 
                 const windSpeeds = nightPeriods.map(item => {
-                    const windSpeed = Math.round(item.wind.speed);
-                    const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
-                    return Math.max(windSpeed, windGust);
+                    return Math.round(item.wind.speed);
                 });
                 
                 const maxWind = Math.max(...windSpeeds);
@@ -619,8 +610,7 @@
                     const itemTime = new Date(item.dt * 1000);
                     const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
                     const windSpeed = Math.round(item.wind.speed);
-                    const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
-                    const maxWindForPeriod = Math.max(windSpeed, windGust);
+                    const maxWindForPeriod = windSpeed;
                     
                     if (maxWindForPeriod >= 20) {
                         let periodStart = itemET;
