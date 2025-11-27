@@ -760,18 +760,18 @@
                 return;
             }
             
-            // Current wind image: bkt_swaying.png if windy (>= 20 mph), bkt.png if not windy
-            const currentImage = currentWind.maxWind >= 20 ? '/images/bkt_swaying.png' : '/images/bkt.png';
+            // Current wind emoji: 🎢 if windy (>= 20 mph), 🏙️ if not windy
+            const currentEmoji = currentWind.maxWind >= 20 ? '🎢' : '🏙️';
             
-            // Tonight image: bkt_swaying.png if windy tonight (>= 20 mph), bkt.png if not windy
-            const tonightImage = tonightForecast && tonightForecast.maxWind >= 20 ? '/images/bkt_swaying.png' : '/images/bkt.png';
+            // Tonight emoji: 🎢 if windy tonight (>= 20 mph), 🏙️ if not windy
+            const tonightEmoji = tonightForecast && tonightForecast.maxWind >= 20 ? '🎢' : '🏙️';
             
             const cached = localStorage.getItem('weatherCache');
             const cacheAge = cached ? Date.now() - JSON.parse(cached).timestamp : 0;
             const minutesOld = Math.floor(cacheAge / 60000);
             
-            // Determine which image and label to show
-            const displayImage = showingNow ? currentImage : tonightImage;
+            // Determine which emoji and label to show
+            const displayEmoji = showingNow ? currentEmoji : tonightEmoji;
             const viewLabel = showingNow ? 'Right Now' : 'Later';
             const statusText = showingNow 
                 ? (currentWind.maxWind >= 20 ? 'Windy' : 'Calm')
@@ -792,9 +792,7 @@
                     ` : ''}
                     
                     <div onclick="toggleDetails()" class="select-none mb-6">
-                        <div class="emoji-main">
-                            <img src="${displayImage}" alt="${statusText}" class="w-full h-auto max-w-xs mx-auto" />
-                        </div>
+                        <div class="emoji-main">${displayEmoji}</div>
                         <p class="text-slate-400 text-sm mt-4">${viewLabel}</p>
                         <p class="text-slate-500 text-xs mt-1">${statusText}</p>
                     </div>
@@ -860,13 +858,13 @@
 
         function renderDetails(forecast) {
             const today = forecast[0];
-            const image = today.shouldSleepInStudy ? '/images/bkt_swaying.png' : '/images/bkt.png';
+            const emoji = today.shouldSleepInStudy ? '🎢' : '🏙️';
             
             document.getElementById('app').innerHTML = `
                 <div class="max-w-2xl w-full">
                     <div class="text-center mb-8">
-                        <div onclick="toggleDetails()" class="emoji-main select-none inline-block">
-                            <img src="${image}" alt="${today.shouldSleepInStudy ? 'Windy' : 'Calm'}" class="w-16 h-16 mx-auto" />
+                        <div onclick="toggleDetails()" class="emoji-main select-none inline-block" style="font-size: 4rem;">
+                            ${emoji}
                         </div>
                         <p class="text-slate-400 text-sm mt-2">Later</p>
                     </div>
@@ -876,7 +874,7 @@
                         <p class="text-slate-400 text-sm mb-4">5-Day Forecast</p>
                         <div class="space-y-3">
                             ${forecast.slice(0, 5).map((day, idx) => {
-                                const dayImage = day.shouldSleepInStudy ? '/images/bkt_swaying.png' : '/images/bkt.png';
+                                const dayEmoji = day.shouldSleepInStudy ? '🎢' : '🏙️';
                                 const date = new Date(day.date);
                                 const dateStr = idx === 0 ? 'Tonight' : 
                                                idx === 1 ? 'Tomorrow' :
@@ -886,7 +884,7 @@
                                     <div class="py-2 border-b border-slate-700/50 last:border-0">
                                         <div class="flex items-center justify-between mb-1">
                                             <div class="flex items-center gap-3 flex-1">
-                                                <img src="${dayImage}" alt="${day.shouldSleepInStudy ? 'Windy' : 'Calm'}" class="w-8 h-8" />
+                                                <span class="text-3xl">${dayEmoji}</span>
                                                 <span class="text-slate-300 text-sm">${dateStr}</span>
                                             </div>
                                             <div class="flex items-center gap-2">
