@@ -69,6 +69,7 @@
         let forecastData = null;
         let rawForecastList = null;
         let isDemoMode = false;
+        let showingNow = true; // true = showing "now", false = showing "later" (5-day forecast)
 
         function getETTime() {
             const now = new Date();
@@ -770,50 +771,75 @@
                         </div>
                     ` : ''}
                     
-                    <div class="select-none mb-8">
-                        <div class="emoji-main">${currentEmoji}</div>
-                        <p class="text-slate-400 text-sm mt-4">Right Now</p>
-                        <p class="text-slate-500 text-xs mt-1">${statusText}</p>
-                    </div>
-
-                    <!-- 5-day forecast -->
-                    <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 mb-6">
-                        <p class="text-slate-400 text-sm mb-4">5-Day Forecast</p>
-                        <div class="space-y-3">
-                            ${forecast.slice(0, 5).map((day, idx) => {
-                                const dayEmoji = day.shouldSleepInStudy ? '🎢' : '🏙️';
-                                const date = new Date(day.date);
-                                const dateStr = idx === 0 ? 'Tonight' : 
-                                               idx === 1 ? 'Tomorrow' :
-                                               date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-                                
-                                return `
-                                    <div class="py-2 border-b border-slate-700/50 last:border-0">
-                                        <div class="flex items-center justify-between mb-1">
-                                            <div class="flex items-center gap-3 flex-1">
-                                                <span class="text-3xl">${dayEmoji}</span>
-                                                <span class="text-slate-300 text-sm">${dateStr}</span>
-                                            </div>
-                                            <div class="flex items-center gap-2">
-                                                <div class="w-24 bg-slate-700 rounded-full h-1.5 overflow-hidden">
-                                                    <div class="h-full ${day.maxWind >= 20 ? 'bg-orange-400' : 'bg-emerald-400'}" 
-                                                         style="width: ${Math.min((day.maxWind / 30) * 100, 100)}%"></div>
-                                                </div>
-                                                <span class="text-sm font-medium w-12 text-right ${day.maxWind >= 20 ? 'text-orange-400' : 'text-slate-300'}">
-                                                    ${day.maxWind} mph
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="ml-12 text-xs text-slate-400 space-y-1">
-                                            ${day.dayWindyMins > 0 ? `<div>☀️ ${formatDuration(day.dayWindyMins)}</div>` : ''}
-                                            ${day.nightWindyMins > 0 ? `<div>🌙 ${formatDuration(day.nightWindyMins)}</div>` : ''}
-                                            ${(day.dayWindyMins || 0) === 0 && (day.nightWindyMins || 0) === 0 ? `<div>No windy time</div>` : ''}
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('')}
+                    <!-- Toggle switch -->
+                    <div class="flex items-center justify-center mb-6">
+                        <div class="bg-slate-700 rounded-full p-1 flex items-center relative">
+                            <button onclick="showingNow = true; renderSimple(forecastData, isDemoMode);" 
+                                    class="px-6 py-2 rounded-full text-sm font-medium transition-all relative z-10 ${
+                                        showingNow 
+                                            ? 'bg-amber-500 text-slate-900' 
+                                            : 'text-slate-300 hover:text-slate-100'
+                                    }">
+                                Now
+                            </button>
+                            <button onclick="showingNow = false; renderSimple(forecastData, isDemoMode);" 
+                                    class="px-6 py-2 rounded-full text-sm font-medium transition-all relative z-10 ${
+                                        !showingNow 
+                                            ? 'bg-amber-500 text-slate-900' 
+                                            : 'text-slate-300 hover:text-slate-100'
+                                    }">
+                                Later
+                            </button>
                         </div>
                     </div>
+                    
+                    ${showingNow ? `
+                        <!-- Now view -->
+                        <div class="select-none mb-8">
+                            <div class="emoji-main">${currentEmoji}</div>
+                            <p class="text-slate-400 text-sm mt-4">Right Now</p>
+                            <p class="text-slate-500 text-xs mt-1">${statusText}</p>
+                        </div>
+                    ` : `
+                        <!-- Later view - 5-day forecast -->
+                        <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 mb-6">
+                            <p class="text-slate-400 text-sm mb-4">5-Day Forecast</p>
+                            <div class="space-y-3">
+                                ${forecast.slice(0, 5).map((day, idx) => {
+                                    const dayEmoji = day.shouldSleepInStudy ? '🎢' : '🏙️';
+                                    const date = new Date(day.date);
+                                    const dateStr = idx === 0 ? 'Tonight' : 
+                                                   idx === 1 ? 'Tomorrow' :
+                                                   date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+                                    
+                                    return `
+                                        <div class="py-2 border-b border-slate-700/50 last:border-0">
+                                            <div class="flex items-center justify-between mb-1">
+                                                <div class="flex items-center gap-3 flex-1">
+                                                    <span class="text-3xl">${dayEmoji}</span>
+                                                    <span class="text-slate-300 text-sm">${dateStr}</span>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-24 bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                                                        <div class="h-full ${day.maxWind >= 20 ? 'bg-orange-400' : 'bg-emerald-400'}" 
+                                                             style="width: ${Math.min((day.maxWind / 30) * 100, 100)}%"></div>
+                                                    </div>
+                                                    <span class="text-sm font-medium w-12 text-right ${day.maxWind >= 20 ? 'text-orange-400' : 'text-slate-300'}">
+                                                        ${day.maxWind} mph
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div class="ml-12 text-xs text-slate-400 space-y-1">
+                                                ${day.dayWindyMins > 0 ? `<div>☀️ ${formatDuration(day.dayWindyMins)}</div>` : ''}
+                                                ${day.nightWindyMins > 0 ? `<div>🌙 ${formatDuration(day.nightWindyMins)}</div>` : ''}
+                                                ${(day.dayWindyMins || 0) === 0 && (day.nightWindyMins || 0) === 0 ? `<div>No windy time</div>` : ''}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `}
 
                     <div class="text-center">
                         <button onclick="forceRefresh()" class="text-slate-400 hover:text-amber-400 text-sm transition-colors">
