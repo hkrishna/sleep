@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Brooklyn Towers Sleep Advisor</title>
+    <title>BKT Noise level</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -759,15 +759,11 @@
             
             document.getElementById('app').innerHTML = `
                 <div class="max-w-2xl w-full text-center">
-                    <h1 class="text-2xl font-semibold text-slate-200 mb-6">Brooklyn Towers Wind Conditions</h1>
+                    <h1 class="text-2xl font-semibold text-slate-200 mb-6">BKT Noise level</h1>
                     
                     ${isDemo ? `
-                        <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2 mb-8 inline-block">
+                        <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2 mb-6 inline-block">
                             <p class="text-amber-300 text-xs font-medium">DEMO MODE</p>
-                        </div>
-                    ` : minutesOld > 0 ? `
-                        <div class="bg-slate-700/30 border border-slate-600/30 rounded-xl px-4 py-2 mb-8 inline-block">
-                            <p class="text-slate-400 text-xs">Updated ${minutesOld} min ago</p>
                         </div>
                     ` : ''}
                     
@@ -841,7 +837,10 @@
                         </div>
                     `}
 
-                    <div class="text-center">
+                    <div class="text-center mt-8 space-y-2">
+                        ${minutesOld > 0 ? `
+                            <p class="text-slate-400 text-xs">Updated ${minutesOld} min ago</p>
+                        ` : ''}
                         <button onclick="forceRefresh()" class="text-slate-400 hover:text-amber-400 text-sm transition-colors">
                             Force Refresh
                         </button>
