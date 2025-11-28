@@ -811,8 +811,8 @@
                 return;
             }
             
-            // Current wind emoji: 🎢 if windy (>= 20 mph), 🏙️ if not windy
-            const currentEmoji = currentWind.maxWind >= 20 ? '🎢' : '🏙️';
+            // Current wind emoji: 🌋 if windy (>= 20 mph), ⛰️ if not windy
+            const currentEmoji = currentWind.maxWind >= 20 ? '🌋' : '⛰️';
             const statusText = currentWind.maxWind >= 20 ? 'Windy' : 'Calm';
             
             const cached = localStorage.getItem('weatherCache');
@@ -864,7 +864,7 @@
                             <p class="text-slate-400 text-sm mb-4">5-Day Forecast</p>
                             <div class="space-y-3">
                                 ${forecast.slice(0, 5).map((day, idx) => {
-                                    const dayEmoji = day.shouldSleepInStudy ? '🎢' : '🏙️';
+                                    const dayEmoji = day.shouldSleepInStudy ? '🌋' : '⛰️';
                                     const date = new Date(day.date);
                                     const dateStr = idx === 0 ? 'Tonight' : 
                                                    idx === 1 ? 'Tomorrow' :
@@ -915,7 +915,7 @@
 
         function renderDetails(forecast) {
             const today = forecast[0];
-            const emoji = today.shouldSleepInStudy ? '🎢' : '🏙️';
+            const emoji = today.shouldSleepInStudy ? '🌋' : '⛰️';
             
             document.getElementById('app').innerHTML = `
                 <div class="max-w-2xl w-full">
@@ -931,7 +931,7 @@
                         <p class="text-slate-400 text-sm mb-4">5-Day Forecast</p>
                         <div class="space-y-3">
                             ${forecast.slice(0, 5).map((day, idx) => {
-                                const dayEmoji = day.shouldSleepInStudy ? '🎢' : '🏙️';
+                                const dayEmoji = day.shouldSleepInStudy ? '🌋' : '⛰️';
                                 const date = new Date(day.date);
                                 const dateStr = idx === 0 ? 'Tonight' : 
                                                idx === 1 ? 'Tomorrow' :
