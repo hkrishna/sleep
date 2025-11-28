@@ -84,9 +84,11 @@
             const main = weatherData.weather[0].main.toLowerCase();
             const description = weatherData.weather[0].description.toLowerCase();
             const windSpeed = weatherData.wind ? Math.round(weatherData.wind.speed) : 0;
+            const windGust = weatherData.wind && weatherData.wind.gust ? Math.round(weatherData.wind.gust) : windSpeed;
+            const maxWind = Math.max(windSpeed, windGust);
             
             // Check for wind first (if very windy, show wind emoji)
-            if (windSpeed >= 20) {
+            if (maxWind >= 20) {
                 return '💨';
             }
             
@@ -115,7 +117,7 @@
                 return '❄️';
             } else if (main === 'mist' || main === 'fog' || main === 'haze') {
                 return '🌫️';
-            } else if (windSpeed >= 15) {
+            } else if (maxWind >= 15) {
                 return '💨';
             } else {
                 return '🌤️';
@@ -141,11 +143,14 @@
             }
             
             const windSpeed = Math.round(closest.wind.speed);
+            const windGust = closest.wind.gust ? Math.round(closest.wind.gust) : windSpeed;
+            const maxWind = Math.max(windSpeed, windGust);
             
             return {
                 speed: windSpeed,
-                maxWind: windSpeed,
-                shouldSleepInStudy: windSpeed >= 20,
+                gust: windGust,
+                maxWind: maxWind,
+                shouldSleepInStudy: maxWind >= 20,
                 weatherEmoji: getWeatherEmoji(closest),
                 weatherData: closest
             };
@@ -196,7 +201,8 @@
                 const itemTime = new Date(item.dt * 1000);
                 const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
                 const windSpeed = Math.round(item.wind.speed);
-                const maxWind = windSpeed;
+                const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
+                const maxWind = Math.max(windSpeed, windGust);
                 
                 // Each forecast represents a 3-hour period
                 // For the first period, start from current time if it's the closest forecast
@@ -353,7 +359,9 @@
             if (nightPeriods.length === 0) return null;
             
             const windSpeeds = nightPeriods.map(item => {
-                return Math.round(item.wind.speed);
+                const windSpeed = Math.round(item.wind.speed);
+                const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
+                return Math.max(windSpeed, windGust);
             });
             
             const maxWind = Math.max(...windSpeeds);
@@ -525,7 +533,8 @@
                 const itemTime = new Date(item.dt * 1000);
                 const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
                 const windSpeed = Math.round(item.wind.speed);
-                const maxWind = windSpeed;
+                const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
+                const maxWind = Math.max(windSpeed, windGust);
                 
                 if (maxWind >= 20) {
                     // Determine the period this forecast covers
@@ -578,7 +587,9 @@
                 if (nightPeriods.length === 0) continue;
                 
                 const windSpeeds = nightPeriods.map(item => {
-                    return Math.round(item.wind.speed);
+                    const windSpeed = Math.round(item.wind.speed);
+                    const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
+                    return Math.max(windSpeed, windGust);
                 });
                 
                 const maxWind = Math.max(...windSpeeds);
@@ -605,14 +616,19 @@
                 let nightWindyMins = 0;
                 let totalWindyMins = 0;
                 
+                // Track all continuous windy periods and find the most windy one
+                const windyPeriods = [];
+                let currentWindyPeriod = null;
+                
                 for (let i = 0; i < allDayPeriods.length; i++) {
                     const item = allDayPeriods[i];
                     const itemTime = new Date(item.dt * 1000);
                     const itemET = new Date(itemTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
                     const windSpeed = Math.round(item.wind.speed);
-                    const maxWindForPeriod = windSpeed;
+                    const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
+                    const maxWind = Math.max(windSpeed, windGust);
                     
-                    if (maxWindForPeriod >= 20) {
+                    if (maxWind >= 20) {
                         let periodStart = itemET;
                         let periodEnd;
                         
@@ -626,6 +642,32 @@
                         } else {
                             const threeHoursLater = new Date(itemET.getTime() + 3 * 60 * 60 * 1000);
                             periodEnd = threeHoursLater < dayEnd ? threeHoursLater : dayEnd;
+                        }
+                        
+                        // Track this windy period - check if it's continuous with previous
+                        if (!currentWindyPeriod) {
+                            // Start a new period
+                            currentWindyPeriod = {
+                                start: periodStart,
+                                end: periodEnd,
+                                maxWindSpeed: maxWind
+                            };
+                        } else {
+                            // Check if this period is continuous with the current one
+                            // If the start of this period is at or before the end of current period, merge them
+                            if (periodStart <= currentWindyPeriod.end) {
+                                // Extend current period
+                                currentWindyPeriod.end = periodEnd;
+                                currentWindyPeriod.maxWindSpeed = Math.max(currentWindyPeriod.maxWindSpeed, maxWind);
+                            } else {
+                                // Not continuous, save current and start new
+                                windyPeriods.push(currentWindyPeriod);
+                                currentWindyPeriod = {
+                                    start: periodStart,
+                                    end: periodEnd,
+                                    maxWindSpeed: maxWind
+                                };
+                            }
                         }
                         
                         // Split period into day and night portions
@@ -662,7 +704,36 @@
                         const durationMs = periodEnd.getTime() - periodStart.getTime();
                         const durationMins = Math.round(durationMs / (1000 * 60));
                         totalWindyMins += Math.max(0, durationMins);
+                    } else {
+                        // Not windy, end current period if exists
+                        if (currentWindyPeriod) {
+                            windyPeriods.push(currentWindyPeriod);
+                            currentWindyPeriod = null;
+                        }
                     }
+                }
+                
+                // Add final period if exists
+                if (currentWindyPeriod) {
+                    windyPeriods.push(currentWindyPeriod);
+                }
+                
+                // Find the most windy period (highest maxWindSpeed)
+                let mostWindyPeriod = null;
+                if (windyPeriods.length > 0) {
+                    mostWindyPeriod = windyPeriods.reduce((max, period) => 
+                        period.maxWindSpeed > max.maxWindSpeed ? period : max
+                    );
+                }
+                
+                // Format the most windy period time range if it exists
+                let mostWindyTimeRange = null;
+                if (mostWindyPeriod) {
+                    mostWindyTimeRange = {
+                        startTime: formatTimeET(mostWindyPeriod.start),
+                        endTime: formatTimeET(mostWindyPeriod.end),
+                        maxWindSpeed: mostWindyPeriod.maxWindSpeed
+                    };
                 }
                 
                 dailyForecasts.push({
@@ -673,7 +744,8 @@
                     nightPeriods: nightPeriods.slice(0, 4),
                     windyTimeMins: totalWindyMins,
                     dayWindyMins: dayWindyMins,
-                    nightWindyMins: nightWindyMins
+                    nightWindyMins: nightWindyMins,
+                    mostWindyTimeRange: mostWindyTimeRange
                 });
             }
             
@@ -806,13 +878,15 @@
                                                     <span class="text-slate-300 text-sm">${dateStr}</span>
                                                 </div>
                                                 <div class="flex items-center gap-2">
-                                                    <div class="w-24 bg-slate-700 rounded-full h-1.5 overflow-hidden">
-                                                        <div class="h-full ${day.maxWind >= 20 ? 'bg-orange-400' : 'bg-emerald-400'}" 
-                                                             style="width: ${Math.min((day.maxWind / 30) * 100, 100)}%"></div>
-                                                    </div>
-                                                    <span class="text-sm font-medium w-12 text-right ${day.maxWind >= 20 ? 'text-orange-400' : 'text-slate-300'}">
-                                                        ${day.maxWind} mph
-                                                    </span>
+                                                    ${day.mostWindyTimeRange ? `
+                                                        <span class="text-sm font-medium text-slate-300">
+                                                            ${day.mostWindyTimeRange.startTime} - ${day.mostWindyTimeRange.endTime}
+                                                        </span>
+                                                    ` : `
+                                                        <span class="text-sm font-medium text-slate-400">
+                                                            No windy periods
+                                                        </span>
+                                                    `}
                                                 </div>
                                             </div>
                                             <div class="ml-12 text-xs text-slate-400 space-y-1">
