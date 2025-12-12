@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BKT Noise level</title>
+    <title>Is it going to be noisy at BKT today?</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -821,7 +821,7 @@
             
             document.getElementById('app').innerHTML = `
                 <div class="max-w-2xl w-full text-center">
-                    <h1 class="text-2xl font-semibold text-slate-200 mb-6">BKT Noise level</h1>
+                    <h1 class="text-2xl font-semibold text-slate-200 mb-6">Is it going to be noisy at BKT today?</h1>
                     
                     ${isDemo ? `
                         <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2 mb-6 inline-block">
@@ -854,6 +854,9 @@
                     ${showingNow ? `
                         <!-- Now view -->
                         <div class="select-none mb-8">
+                            <div class="text-6xl font-bold mb-4 ${currentWind.maxWind >= 20 ? 'text-orange-400' : 'text-emerald-400'}">
+                                ${currentWind.maxWind >= 20 ? 'Yes' : 'No'}
+                            </div>
                             <div class="emoji-main">${currentEmoji}</div>
                             <p class="text-slate-400 text-sm mt-4">Right Now</p>
                             <p class="text-slate-500 text-xs mt-1">${statusText}</p>
@@ -864,6 +867,7 @@
                             <div class="flex items-start justify-between gap-2 overflow-x-auto">
                                 ${forecast.slice(0, 5).map((day, idx) => {
                                     const dayEmoji = day.shouldSleepInStudy ? '🌋' : '⛰️';
+                                    const isNoisy = day.shouldSleepInStudy;
                                     const date = new Date(day.date);
                                     const dateStr = idx === 0 ? 'Tonight' : 
                                                    idx === 1 ? 'Tomorrow' :
@@ -871,6 +875,9 @@
                                     
                                     return `
                                         <div class="flex-1 min-w-0 text-center">
+                                            <div class="text-3xl font-bold mb-2 ${isNoisy ? 'text-orange-400' : 'text-emerald-400'}">
+                                                ${isNoisy ? 'Yes' : 'No'}
+                                            </div>
                                             <div class="text-4xl mb-2">${dayEmoji}</div>
                                             <div class="text-slate-300 text-xs font-medium mb-1">${dateStr}</div>
                                             ${day.mostWindyTimeRange ? `
