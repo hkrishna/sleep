@@ -88,7 +88,7 @@
             const maxWind = Math.max(windSpeed, windGust);
             
             // Check for wind first (if very windy, show wind emoji)
-            if (maxWind >= 20) {
+            if (windGust >= 30) {
                 return '💨';
             }
             
@@ -117,7 +117,7 @@
                 return '❄️';
             } else if (main === 'mist' || main === 'fog' || main === 'haze') {
                 return '🌫️';
-            } else if (maxWind >= 15) {
+            } else if (windGust >= 30) {
                 return '💨';
             } else {
                 return '🌤️';
@@ -150,7 +150,7 @@
                 speed: windSpeed,
                 gust: windGust,
                 maxWind: maxWind,
-                shouldSleepInStudy: maxWind >= 20,
+                shouldSleepInStudy: windGust >= 30,
                 weatherEmoji: getWeatherEmoji(closest),
                 weatherData: closest
             };
@@ -231,7 +231,7 @@
                     startTime: startTime,
                     endTime: endTime,
                     maxWind: maxWind,
-                    isWindy: maxWind >= 20
+                    isWindy: windGust >= 30
                 };
             });
             
@@ -397,9 +397,16 @@
             // Check if we're currently in nighttime (after 7PM or before 7AM)
             const isCurrentlyNighttime = etHour >= 19 || etHour < 7;
             
+            // Get max wind gust for tonight
+            const windGusts = nightPeriods.map(item => {
+                const windGust = item.wind.gust ? Math.round(item.wind.gust) : Math.round(item.wind.speed);
+                return windGust;
+            });
+            const maxWindGust = Math.max(...windGusts);
+            
             return {
                 maxWind: maxWind,
-                shouldSleepInStudy: maxWind >= 20,
+                shouldSleepInStudy: maxWindGust >= 30,
                 weatherEmoji: weatherEmoji,
                 windyPeriods: windyPeriods,
                 totalWindyMins: totalWindyMins,
@@ -536,7 +543,7 @@
                 const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
                 const maxWind = Math.max(windSpeed, windGust);
                 
-                if (maxWind >= 20) {
+                if (windGust >= 30) {
                     // Determine the period this forecast covers
                     let periodStart = itemET;
                     let periodEnd;
@@ -592,7 +599,13 @@
                     return Math.max(windSpeed, windGust);
                 });
                 
+                const windGusts = nightPeriods.map(item => {
+                    const windGust = item.wind.gust ? Math.round(item.wind.gust) : Math.round(item.wind.speed);
+                    return windGust;
+                });
+                
                 const maxWind = Math.max(...windSpeeds);
+                const maxWindGust = Math.max(...windGusts);
                 const avgWind = Math.round(windSpeeds.reduce((a, b) => a + b, 0) / windSpeeds.length);
                 
                 // Calculate windy time for full day (7AM-7AM) broken down by day/night
@@ -628,7 +641,7 @@
                     const windGust = item.wind.gust ? Math.round(item.wind.gust) : windSpeed;
                     const maxWind = Math.max(windSpeed, windGust);
                     
-                    if (maxWind >= 20) {
+                    if (windGust >= 30) {
                         let periodStart = itemET;
                         let periodEnd;
                         
@@ -740,7 +753,7 @@
                     date: targetDate,
                     maxWind: maxWind,
                     avgWind: avgWind,
-                    shouldSleepInStudy: maxWind >= 20,
+                    shouldSleepInStudy: maxWindGust >= 30,
                     nightPeriods: nightPeriods.slice(0, 4),
                     windyTimeMins: totalWindyMins,
                     dayWindyMins: dayWindyMins,
@@ -811,9 +824,9 @@
                 return;
             }
             
-            // Current wind emoji: 🌋 if windy (>= 20 mph), ⛰️ if not windy
-            const currentEmoji = currentWind.maxWind >= 20 ? '🌋' : '⛰️';
-            const statusText = currentWind.maxWind >= 20 ? 'Windy' : 'Calm';
+            // Current wind emoji: 🌋 if windy (wind gusts >= 30 mph), ⛰️ if not windy
+            const currentEmoji = currentWind.gust >= 30 ? '🌋' : '⛰️';
+            const statusText = currentWind.gust >= 30 ? 'Windy' : 'Calm';
             
             const cached = localStorage.getItem('weatherCache');
             const cacheAge = cached ? Date.now() - JSON.parse(cached).timestamp : 0;
@@ -854,8 +867,8 @@
                     ${showingNow ? `
                         <!-- Now view -->
                         <div class="select-none mb-8">
-                            <div class="text-6xl font-bold mb-4 ${currentWind.maxWind >= 20 ? 'text-orange-400' : 'text-emerald-400'}">
-                                ${currentWind.maxWind >= 20 ? 'Yes' : 'No'}
+                            <div class="text-6xl font-bold mb-4 ${currentWind.gust >= 30 ? 'text-orange-400' : 'text-emerald-400'}">
+                                ${currentWind.gust >= 30 ? 'Yes' : 'No'}
                             </div>
                             <div class="emoji-main">${currentEmoji}</div>
                             <p class="text-slate-400 text-sm mt-4">Right Now</p>
@@ -942,10 +955,10 @@
                                             </div>
                                             <div class="flex items-center gap-2">
                                                 <div class="w-24 bg-slate-700 rounded-full h-1.5 overflow-hidden">
-                                                    <div class="h-full ${day.maxWind >= 20 ? 'bg-orange-400' : 'bg-emerald-400'}" 
+                                                    <div class="h-full ${day.shouldSleepInStudy ? 'bg-orange-400' : 'bg-emerald-400'}" 
                                                          style="width: ${Math.min((day.maxWind / 30) * 100, 100)}%"></div>
                                                 </div>
-                                                <span class="text-sm font-medium w-12 text-right ${day.maxWind >= 20 ? 'text-orange-400' : 'text-slate-300'}">
+                                                <span class="text-sm font-medium w-12 text-right ${day.shouldSleepInStudy ? 'text-orange-400' : 'text-slate-300'}">
                                                     ${day.maxWind} mph
                                                 </span>
                                             </div>
